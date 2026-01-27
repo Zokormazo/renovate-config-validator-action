@@ -12,6 +12,17 @@ inputs:
       By default, it validates every file that matches renovate configuration files. 
 
     required: false
+  repository:
+    description: |
+      Repository name (e.g., 'owner/repo') for MintMaker global config generation.
+      Uses a default fake repository if not specified.
+    required: false
+    default: 'konflux-ci/fake-repo'
+  base_branches:
+    description: |
+      Comma-separated list of base branches for MintMaker global config generation.
+    required: false
+    default: 'main'
 runs:
   using: composite
   steps:
@@ -19,25 +30,39 @@ runs:
       run: |
         set -eu
 
+        # Function to generate MintMaker global configuration
+        generate_mintmaker_config() {
+          echo "🔧 Creating MintMaker global configuration..."
+          
+          # Create temporary global config.js file
+          python3 $GITHUB_ACTION_PATH/generate_mintmaker_global_config.py
+          
+          echo "📄 Generated config.js contents:"
+          cat config.js
+          echo "📄 End config.js"
+        }
+
         if [ -n "$CONFIG_FILE_PATH" ] && [ -f "$CONFIG_FILE_PATH" ]; then
           echo "Validating config_file: " "$CONFIG_FILE_PATH"
           
-          config_path="$(pwd)/$CONFIG_FILE_PATH"
-          echo $config_path
+          generate_mintmaker_config
           
-          podman run --rm \
-          -v $config_path:/workspace/renovate.json:ro,Z \
-          quay.io/konflux-ci/mintmaker-renovate-image:latest \
-          renovate-config-validator /workspace/renovate.json > validation.log
-
-          cat validation.log
-
-          echo "finished validating"
+          echo "🔍 Validating repository config with MintMaker global context"
           
-          if grep -qi "ERROR" validation.log; then
-            exit 1
+          # Convert to absolute path and run validation with both configs
+          config_file_abs="$(realpath "$CONFIG_FILE_PATH")"
+          # The validator will automatically load config.js as global configuration
+          if podman run --rm \
+            -v "$(pwd)/config.js:/workspace/config.js:ro,Z" \
+            -v "$config_file_abs:/workspace/renovate.json:ro,Z" \
+            quay.io/konflux-ci/mintmaker-renovate-image:latest \
+            sh -c "cd /workspace && renovate-config-validator" 2>&1 | tee validation.log; then
+            echo "✅ Validation passed"
           else
-            exit 0
+            echo "❌ Validation failed"
+            echo "=== Validation Output ==="
+            cat validation.log
+            exit 1
           fi
 
         fi
@@ -45,35 +70,46 @@ runs:
         echo "No config file was set"
         echo "Detecting renovate configuration files..."
 
-        mkdir /opt/renovate-configs
-
-        renovate_files=$(find . -name "*renovate*.json*")
-
-        for f in $renovate_files; do
-          if [ -f $f ]; then
-            echo "Renovate file detected: $f"
-            cp $f /opt/renovate-configs
-          fi
-        done 
-
-        if [ -z $(ls /opt/renovate-configs) ]; then
-          echo "No config files found"
-          exit 1
-        fi
+        renovate_files=$(find . -name "*renovate*.json*" -type f)
         
-        podman run --rm \
-        -v /opt/renovate-configs:/workspace/renovate-configs \
-        quay.io/konflux-ci/mintmaker-renovate-image:latest \
-        renovate-config-validator /workspace/renovate-configs/renovate.json > validation.log
-
-        cat validation.log
-
-        if grep -qi "ERROR" validation.log; then
+        if [ -z "$renovate_files" ]; then
+          echo "No renovate configuration files found"
           exit 1
-        else
-          exit 0
         fi
+
+        # Process each detected file with MintMaker global context
+        for config_file in $renovate_files; do
+          echo "🔍 Validating $config_file with MintMaker context"
+          
+          # Convert to absolute path to avoid volume mount issues
+          config_file_abs="$(pwd)/$config_file"
+          
+          # Set CONFIG_FILE_PATH for the Python script
+          export CONFIG_FILE_PATH="$config_file_abs"
+          
+          generate_mintmaker_config
+          
+          # Validate with global context using absolute paths
+          if podman run --rm \
+            -v "$(pwd)/config.js:/workspace/config.js:ro,Z" \
+            -v "$config_file_abs:/workspace/renovate.json:ro,Z" \
+            quay.io/konflux-ci/mintmaker-renovate-image:latest \
+            sh -c "cd /workspace && renovate-config-validator" 2>&1 | tee validation.log; then
+            echo "✅ $config_file validation passed"
+          else
+            echo "❌ $config_file validation failed"
+            echo "=== Validation Output ==="
+            cat validation.log
+            exit 1
+          fi
+          
+          rm -f config.js
+        done
+        
+        echo "✅ All detected renovate configs validated successfully with MintMaker context"
 
       shell: bash
       env:
         CONFIG_FILE_PATH: ${{inputs.config_file}}
+        REPOSITORY: ${{inputs.repository}}
+        BASE_BRANCHES: ${{inputs.base_branches}}

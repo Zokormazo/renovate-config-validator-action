@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [":semanticCommits"],
+  "packageRules": [
+    {
+      "matchBaseBranches": ["main"],
+      "matchPackageNames": ["/^quay.io/konflux-ci//"],
+      "automerge": true,
+      "labels": ["main-branch-update"]
+    }
+  ]
+}

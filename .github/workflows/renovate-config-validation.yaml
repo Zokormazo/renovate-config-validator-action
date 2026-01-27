@@ -3,14 +3,22 @@ name: "Validate renovate.json config file"
 on:
   push:
     branches: 
-      - clear-readme
+      - main
+  pull_request:
    
 jobs:
-  config-file-validation:
+  test-basic-config:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./
         with:
           config_file: test/renovate.json
+
+  test-matchbasebranches-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: ./
+        with:
+          config_file: test/matchbasebranches.json
