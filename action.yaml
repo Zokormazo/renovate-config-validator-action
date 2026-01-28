@@ -12,6 +12,13 @@ inputs:
       By default, it validates every file that matches renovate configuration files. 
 
     required: false
+  repository_config:
+    description: |
+      Whether to treat configuration files as repository-level configs (passes --no-global).
+      Set to 'false' to validate as global self-hosted configuration.
+      Defaults to 'true' for repository-level validation.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -19,8 +26,15 @@ runs:
       run: |
         set -eu
 
+        # Determine validator flags based on repository_config input
+        VALIDATOR_FLAGS=""
+        if [ "${REPOSITORY_CONFIG:-true}" = "true" ]; then
+          VALIDATOR_FLAGS="--no-global"
+        fi
+
         if [ -n "$CONFIG_FILE_PATH" ] && [ -f "$CONFIG_FILE_PATH" ]; then
           echo "Validating config_file: " "$CONFIG_FILE_PATH"
+          echo "Using validator flags: $VALIDATOR_FLAGS"
           
           config_path="$(pwd)/$CONFIG_FILE_PATH"
           echo $config_path
@@ -28,7 +42,7 @@ runs:
           podman run --rm \
           -v $config_path:/workspace/renovate.json:ro,Z \
           quay.io/konflux-ci/mintmaker-renovate-image:latest \
-          renovate-config-validator /workspace/renovate.json > validation.log
+          renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate.json > validation.log
 
           cat validation.log
 
@@ -61,10 +75,12 @@ runs:
           exit 1
         fi
         
+        echo "Using validator flags: $VALIDATOR_FLAGS"
+        
         podman run --rm \
         -v /opt/renovate-configs:/workspace/renovate-configs \
         quay.io/konflux-ci/mintmaker-renovate-image:latest \
-        renovate-config-validator /workspace/renovate-configs/renovate.json > validation.log
+        renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate-configs/renovate.json > validation.log
 
         cat validation.log
 
@@ -77,3 +93,4 @@ runs:
       shell: bash
       env:
         CONFIG_FILE_PATH: ${{inputs.config_file}}
+        REPOSITORY_CONFIG: ${{inputs.repository_config}}

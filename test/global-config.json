@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "dryRun": "full",
+  "allowedEnv": ["NODE_ENV", "BUILD_*"],
+  "repositories": [
+    "owner/repo1",
+    {
+      "repository": "owner/repo2",
+      "baseBranches": ["main", "develop"]
+    }
+  ],
+  "cacheDir": "/tmp/renovate-cache",
+  "onboarding": false,
+  "requireConfig": "optional",
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "rangeStrategy": "bump"
+    }
+  ]
+}

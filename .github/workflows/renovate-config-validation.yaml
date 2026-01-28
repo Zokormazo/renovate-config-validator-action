@@ -4,13 +4,25 @@ on:
   push:
     branches: 
       - clear-readme
+      - main
+  pull_request:
    
 jobs:
-  config-file-validation:
+  repository-config-validation:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./
         with:
           config_file: test/renovate.json
+          # repository_config: 'true' is the default
       - uses: ./
+
+  global-config-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          config_file: test/global-config.json
+          repository_config: 'false'
