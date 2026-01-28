@@ -26,7 +26,7 @@ runs:
       run: |
         set -eu
 
-        # Determine validator flags based on repository_config input
+        # Set validator flags - empty string or --no-global
         VALIDATOR_FLAGS=""
         if [ "${REPOSITORY_CONFIG:-true}" = "true" ]; then
           VALIDATOR_FLAGS="--no-global"
@@ -42,9 +42,9 @@ runs:
           # Run validator and capture both STDOUT and STDERR, preserve exit code
           set +e  # Don't exit on command failure
           podman run --rm \
-          -v $config_path:/workspace/renovate.json:ro,Z \
+          -v "$config_path:/workspace/renovate.json:ro,Z" \
           quay.io/konflux-ci/mintmaker-renovate-image:latest \
-          renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate.json 2>&1 | tee validation.log
+          renovate-config-validator ${VALIDATOR_FLAGS} /workspace/renovate.json 2>&1 | tee validation.log
           exit_code=$?
           set -e  # Re-enable exit on error
 
@@ -87,7 +87,7 @@ runs:
         podman run --rm \
         -v /opt/renovate-configs:/workspace/renovate-configs \
         quay.io/konflux-ci/mintmaker-renovate-image:latest \
-        renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate-configs/renovate.json 2>&1 | tee validation.log
+        renovate-config-validator ${VALIDATOR_FLAGS} /workspace/renovate-configs/renovate.json 2>&1 | tee validation.log
         exit_code=$?
         set -e  # Re-enable exit on error
 
