@@ -39,18 +39,23 @@ runs:
           config_path="$(pwd)/$CONFIG_FILE_PATH"
           echo $config_path
           
+          # Run validator and capture both STDOUT and STDERR, preserve exit code
+          set +e  # Don't exit on command failure
           podman run --rm \
           -v $config_path:/workspace/renovate.json:ro,Z \
           quay.io/konflux-ci/mintmaker-renovate-image:latest \
-          renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate.json > validation.log
+          renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate.json 2>&1 | tee validation.log
+          exit_code=$?
+          set -e  # Re-enable exit on error
 
-          cat validation.log
-
-          echo "finished validating"
+          echo "finished validating with exit code: $exit_code"
           
-          if grep -qi "ERROR" validation.log; then
-            exit 1
+          # Exit with the same code as renovate-config-validator
+          if [ $exit_code -ne 0 ]; then
+            echo "Validation failed - see errors above"
+            exit $exit_code
           else
+            echo "Validation successful"
             exit 0
           fi
 
@@ -77,16 +82,23 @@ runs:
         
         echo "Using validator flags: $VALIDATOR_FLAGS"
         
+        # Run validator and capture both STDOUT and STDERR, preserve exit code
+        set +e  # Don't exit on command failure
         podman run --rm \
         -v /opt/renovate-configs:/workspace/renovate-configs \
         quay.io/konflux-ci/mintmaker-renovate-image:latest \
-        renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate-configs/renovate.json > validation.log
+        renovate-config-validator $VALIDATOR_FLAGS /workspace/renovate-configs/renovate.json 2>&1 | tee validation.log
+        exit_code=$?
+        set -e  # Re-enable exit on error
 
-        cat validation.log
-
-        if grep -qi "ERROR" validation.log; then
-          exit 1
+        echo "finished validating with exit code: $exit_code"
+        
+        # Exit with the same code as renovate-config-validator
+        if [ $exit_code -ne 0 ]; then
+          echo "Validation failed - see errors above"
+          exit $exit_code
         else
+          echo "Validation successful"
           exit 0
         fi
 
